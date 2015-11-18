@@ -40,7 +40,13 @@ def pull_graphite_data(url):
     # Catch URL errors
     try:
 	data = urllib.urlopen(url).read()
-	if len(data) == 0:
+
+    # NOTE: This is such an ugly hack - I hate myself.
+    # Essentially, even if the c* connection pool doesn't exist we still
+    # attempt to check for its current size via a nagios ping to graphite.
+    # This conditional, however, will fail for any metric that doesn't exist.
+    # So I'm modifying to fail only for non connection-pool checks. :(
+	if not 'connection-pool' in url and len(data) == 0:
 	    print "Error: No data was returned. Did you specify an existing metric? - " + url
 	    sys.exit(STATE_UNKNOWN)
 	return data
@@ -50,6 +56,12 @@ def pull_graphite_data(url):
 
 def eval_graphite_data(data, seconds):
     """Get the most recent correct value from the data"""
+
+    # NOTE: continuation of the hackery from above.
+    # If its a connection pool check and there is no data,
+    # just return 0.0.
+    if len(data) == 0:
+        return 0.0
 
     sample_period = int(data.split('|')[0].split(',')[-1])
     all_data_points = data.split('|')[-1].split(',')
